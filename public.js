@@ -7,11 +7,15 @@ const utils = require('ethers').utils;
 const config = require('./config.js')
 let json = require('./abi.json');
 
-
+//-----------------------------------------------------------------
+//--------------- Change this function every time------------------
+let maxFeePerGasTx = 200;
+let maxPriorityFeePerGasTx = 300;
+//-----------------------------------------------------------------
+//-----------------------------------------------------------------
 
 abiDecoder.addABI(json);
 const { spawn, exec } = require("child_process");
-
 
 function getJSON() {
     console.log(json); // this will show the info it in firebug console
@@ -56,25 +60,28 @@ function sendMinimalLondonTx(web3,data,toAddress,price) {
     data: data,
     to: toAddress,
     value: web3.utils.toWei(price, 'ether'),
-  }).then((estimatedGas) => {
-    console.log("estimatedGas", estimatedGas);
-    sendTx(web3, {
-      gas: estimatedGas,
-      maxPriorityFeePerGas: web3.utils.toHex(web3.utils.toWei(config.maxPriorityFeePerGas, 'gwei')),
-      maxFeePerGas: web3.utils.toHex(web3.utils.toWei(config.maxFeePerGas, 'gwei')),
-      to: toAddress,
-      value: web3.utils.toWei(price, 'ether'),
-      data: web3.utils.toHex(data)
-    });
+  }, function (err, estimatedGas) {
+    if(err){
+      console.log(err);
+      setTimeout(sendMinimalLondonTx, 1000, web3,data,toAddress,price);
+    } else {
+      console.log("estimatedGas", estimatedGas);
+      sendTx(web3, {
+        gas: estimatedGas,
+        maxPriorityFeePerGas: web3.utils.toHex(web3.utils.toWei(maxPriorityFeePerGasTx, 'gwei')),
+        maxFeePerGas: web3.utils.toHex(web3.utils.toWei(maxFeePerGasTx, 'gwei')),
+        to: toAddress,
+        value: web3.utils.toWei(price, 'ether'),
+        data: web3.utils.toHex(data)
+      });
+    }
   });
 }
-
 
 const pendingTrasactions = async () => {
   let web3URL;
   let targetContract;
   let creator;
-
 
   console.log('Network Mode:', config.network);
   switch(config.network) {
@@ -105,7 +112,7 @@ const pendingTrasactions = async () => {
 
   //-----------------------------------------------------------------
   //--------------- Change this function every time------------------
-  let extraData =  await contract.methods.mintSAC(config.number);
+  let extraData =  await contract.methods.adoptApes(config.number);
   //-----------------------------------------------------------------
   //-----------------------------------------------------------------
 
@@ -128,12 +135,15 @@ const pendingTrasactions = async () => {
           //console.log(decodedData);
           //-----------------------------------------------------------------
           //--------------- Change this function every time------------------
-          if((decodedData.name == 'flipPublicSaleState')){
+          if((decodedData.name == 'flipSaleState')){
           //-----------------------------------------------------------------
           //-----------------------------------------------------------------
             // your code
             console.log("Found out the public sales",decodedData.name);
             console.log("INPUT DATA",data);
+            // adjust gas by owner tx
+            maxFeePerGasTx  = web3.utils.fromWei(web3.utils.hexToNumber(blockHeader.maxFeePerGas).toString(), 'gwei');
+            maxPriorityFeePerGasTx = web3.utils.fromWei(web3.utils.hexToNumber(blockHeader.maxPriorityFeePerGas).toString(), 'gwei');
             sendMinimalLondonTx(web3,data,targetContract,config.price);
           }
         }
